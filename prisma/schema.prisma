@@ -1,0 +1,120 @@
+// Yasmine Kost — Prisma schema
+//
+// Catatan: provider SQLite dipakai untuk rilis pertama (paling sederhana di-deploy).
+// Untuk pindah ke PostgreSQL: ganti `provider = "postgresql"` dan set DATABASE_URL,
+// lalu jalankan `prisma migrate`. SQLite tidak mendukung tipe list (String[]),
+// jadi field "facilities" pada Room disimpan sebagai JSON string (lihat lib/rooms).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  password  String // simpan HASH (bcrypt), bukan teks asli
+  role      String   @default("ADMIN") // ADMIN | STAFF
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Room {
+  id           String    @id @default(cuid())
+  number       String    @unique // mis. "A-01"
+  name         String? // label opsional, mis. "Kamar Melati"
+  category     String    @default("CAMPUR") // PUTRA | PUTRI | CAMPUR
+  monthlyPrice Int // sewa per bulan (Rupiah)
+  deposit      Int       @default(0)
+  size         String? // mis. "3x4 m"
+  privateBath  Boolean   @default(false) // kamar mandi dalam
+  hasAC        Boolean   @default(false)
+  description  String?
+  status       String    @default("AVAILABLE") // AVAILABLE | OCCUPIED | MAINTENANCE
+  facilities   String    @default("[]") // JSON array of string, mis. ["WiFi","Lemari"]
+  photos       Photo[]
+  bookings     Booking[]
+  tenant       Tenant? // penghuni saat ini (1 kamar = 1 penghuni aktif)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+model Photo {
+  id      String  @id @default(cuid())
+  url     String
+  caption String?
+  sort    Int     @default(0)
+  room    Room    @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  roomId  String
+}
+
+model Booking {
+  id         String   @id @default(cuid())
+  code       String   @unique // kode booking yang ditunjukkan ke penyewa
+  room       Room     @relation(fields: [roomId], references: [id])
+  roomId     String
+  name           String
+  phone          String
+  email          String?
+  moveInDate     DateTime
+  durationMonths Int      @default(1) // lama sewa yang diinginkan (bulan)
+  message        String?
+  proofUrl       String? // bukti transfer DP/sewa pertama (opsional saat awal)
+  status     String   @default("PENDING") // PENDING | APPROVED | REJECTED | CANCELLED | CONVERTED
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Tenant {
+  id               String    @id @default(cuid())
+  name             String
+  phone            String
+  email            String?
+  idCardNumber     String? // No. KTP
+  emergencyContact String?
+  room             Room      @relation(fields: [roomId], references: [id])
+  roomId           String    @unique // 1 kamar = 1 penghuni aktif
+  moveInDate       DateTime
+  contractEndDate  DateTime?
+  status           String    @default("ACTIVE") // ACTIVE | INACTIVE
+  payments         Payment[]
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+}
+
+model Payment {
+  id          String    @id @default(cuid())
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenantId    String
+  periodMonth Int // 1-12
+  periodYear  Int
+  amount      Int
+  dueDate     DateTime
+  paidDate    DateTime?
+  proofUrl    String? // bukti transfer
+  status      String    @default("UNPAID") // UNPAID | PENDING_VERIFICATION | PAID | OVERDUE
+  notes       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([tenantId, periodMonth, periodYear])
+}
+
+model Facility {
+  id          String  @id @default(cuid())
+  name        String
+  icon        String? // nama ikon lucide, mis. "wifi"
+  description String?
+  sort        Int     @default(0)
+}
+
+model SiteSetting {
+  id    String @id @default(cuid())
+  key   String @unique
+  value String
+}
