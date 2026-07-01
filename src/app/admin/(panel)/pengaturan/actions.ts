@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth";
 import { saveUploadedImage } from "@/lib/uploads";
+import { normalizeWhatsappNumber } from "@/lib/settings";
 
 export type SettingsFormState = {
   ok: boolean;
@@ -51,11 +52,11 @@ export async function updateSettings(
     return { ok: false, error: "Nama situs wajib diisi." };
   }
 
-  const whatsapp = String(formData.get("whatsapp") || "").replace(/[^0-9]/g, "");
+  const whatsapp = normalizeWhatsappNumber(String(formData.get("whatsapp") || ""));
   if (whatsapp && !/^[0-9]{8,15}$/.test(whatsapp)) {
     return {
       ok: false,
-      error: "Nomor WhatsApp harus format internasional (digit saja), mis. 628125679294.",
+      error: "Nomor WhatsApp tidak valid. Contoh: 08125679294 atau 628125679294.",
     };
   }
 

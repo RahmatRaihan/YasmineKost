@@ -38,9 +38,26 @@ export async function getSiteSettings(): Promise<
   return result;
 }
 
+/**
+ * Bakukan nomor Indonesia ke format internasional untuk wa.me
+ * (tanpa "+", tanpa "0" di depan). Contoh:
+ *   "0812-5679-294" -> "628125679294"
+ *   "628125679294"  -> "628125679294"
+ *   "8125679294"    -> "628125679294"
+ * Mengembalikan "" bila tidak ada digit.
+ */
+export function normalizeWhatsappNumber(number: string): string {
+  let d = (number || "").replace(/\D/g, "");
+  if (!d) return "";
+  if (d.startsWith("62")) d = d.slice(2); // buang kode negara bila sudah ada
+  if (d.startsWith("0")) d = d.slice(1); // buang 0 lokal
+  if (!d) return "";
+  return "62" + d;
+}
+
 /** Bangun URL chat WhatsApp dengan pesan opsional. */
 export function whatsappLink(number: string, message?: string): string {
-  const clean = number.replace(/[^0-9]/g, "");
+  const clean = normalizeWhatsappNumber(number);
   const base = `https://wa.me/${clean}`;
   return message ? `${base}?text=${encodeURIComponent(message)}` : base;
 }
