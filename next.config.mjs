@@ -1,6 +1,5 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: "standalone",
   // ESLint belum dikonfigurasi pada MVP ini; jangan blokir build produksi.
   // (Pemeriksaan tipe TypeScript tetap aktif.)
   eslint: { ignoreDuringBuilds: true },

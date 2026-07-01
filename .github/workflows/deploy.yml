@@ -12,47 +12,78 @@ on:
   workflow_dispatch:
 
 jobs:
-  deploy:
+  build-and-deploy:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Deploy via SSH to VPS
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      # ==== Build berat dilakukan DI RUNNER (cepat), bukan di VPS ====
+      - name: Build Next.js
+        env:
+          # Placeholder: build tidak mengakses DB (semua halaman dinamis),
+          # hanya dibutuhkan agar `prisma generate` tidak protes.
+          DATABASE_URL: "file:./build-placeholder.db"
+          # URL publik situs untuk metadata/sitemap (set di GitHub Secrets sebagai SITE_URL).
+          NEXT_PUBLIC_SITE_URL: ${{ secrets.SITE_URL }}
+        run: npm run build
+
+      - name: Kemas hasil build
+        run: tar -czf deploy.tar.gz .next
+
+      # ==== Kirim hasil build ke VPS ====
+      - name: Kirim hasil build ke VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          source: "deploy.tar.gz"
+          target: "/var/www/yasmine-kost"
+
+      # ==== VPS hanya extract + restart, TANPA build ====
+      - name: Pasang & restart di VPS
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           password: ${{ secrets.SSH_PASSWORD }}
           port: ${{ secrets.SSH_PORT || 22 }}
-          # Build Next.js di VPS kecil bisa lama; default 10m sering kurang.
-          command_timeout: "90m"
+          command_timeout: "15m"
           script: |
-            # Masuk ke direktori aplikasi di VPS
-            cd /var/www/yasmine-kost || exit
-            
-            # Ambil kode terbaru dari GitHub
+            set -e
+            cd /var/www/yasmine-kost
+
+            # Sinkron source (package.json, prisma, next.config, dll) — bukan untuk build
             git pull origin main
-            
-            # Pasang dependensi (lewati audit/fund agar lebih cepat)
-            npm install --no-audit --no-fund
-            
-            # Generate Prisma Client & Sync Database
-            npx prisma generate
+
+            # Sinkron dependensi runtime + generate Prisma Client untuk platform VPS
+            # (--include=dev karena prisma CLI ada di devDependencies)
+            npm install --include=dev --no-audit --no-fund
+
+            # Ganti build lama dengan hasil dari runner (simpan cadangan untuk rollback)
+            rm -rf .next.bak
+            if [ -d .next ]; then mv .next .next.bak; fi
+            tar -xzf deploy.tar.gz
+            rm -f deploy.tar.gz
+
+            # Sinkron skema database
             npx prisma db push
-            
-            # Build Next.js aplikasi untuk produksi
-            npm run build
-            
-            # Kelola proses PM2
-            pm2 describe yasmine-kost > /dev/null 2>&1
-            if [ $? -ne 0 ]; then
-              # Jika proses PM2 belum ada, jalankan baru
-              pm2 start npm --name "yasmine-kost" -- run start
-            else
-              # Jika sudah ada, muat ulang (zero-downtime reload)
+
+            # Restart aplikasi (tanpa build di VPS)
+            if pm2 describe yasmine-kost > /dev/null 2>&1; then
               pm2 reload yasmine-kost
+            else
+              pm2 start npm --name "yasmine-kost" -- run start
             fi
-            
-            # Simpan daftar proses PM2 agar otomatis jalan saat VPS restart
             pm2 save

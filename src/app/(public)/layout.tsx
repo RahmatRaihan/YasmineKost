@@ -4,6 +4,11 @@ import { WhatsappFab } from "@/components/public/whatsapp-button";
 import { SplashScreen } from "@/components/public/splash-screen";
 import { getSiteSettings } from "@/lib/settings";
 
+// Seluruh halaman publik membaca data dari database (pengaturan situs, dsb),
+// jadi dirender per-request. Ini juga membuat build tidak butuh database
+// (penting saat build dipindah ke runner GitHub) & konten selalu terkini.
+export const dynamic = "force-dynamic";
+
 export default async function PublicLayout({
   children,
 }: {

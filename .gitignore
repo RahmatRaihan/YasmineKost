@@ -5,8 +5,12 @@
 
 # next.js
 /.next/
+/.next.bak/
 /out/
 next-env.d.ts
+
+# deploy artifact (build dikirim ke VPS)
+/deploy.tar.gz
 
 # production
 /build
