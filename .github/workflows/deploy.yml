@@ -4,6 +4,12 @@ on:
   push:
     branches:
       - main
+    # Jangan deploy kalau yang berubah cuma dokumen / file workflow itu sendiri.
+    paths-ignore:
+      - "**.md"
+      - ".github/**"
+  # Bisa dijalankan manual kapan saja dari tab Actions (tombol "Run workflow").
+  workflow_dispatch:
 
 jobs:
   deploy:
